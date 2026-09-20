@@ -59,10 +59,22 @@ export function redirectUri(request: Request) { return `${new URL(request.url).o
 
 export async function tokenRequest(params: URLSearchParams) {
   const { appKey, appSecret } = settings();
+  const body = new URLSearchParams(params);
+  body.set("client_id", appKey);
+  body.set("client_secret", appSecret);
   const response = await fetch("https://api.dropboxapi.com/oauth2/token", {
-    method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${btoa(`${appKey}:${appSecret}`)}` }, body: params,
+    method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body,
   });
-  if (!response.ok) throw new Error(`Dropbox OAuth: ${response.status}`);
+  if (!response.ok) {
+    const result = await response.text();
+    let reason = "unknown";
+    try {
+      const error = JSON.parse(result) as { error?: unknown; error_description?: unknown };
+      reason = [error.error, error.error_description].filter((part): part is string => typeof part === "string").join(": ") || reason;
+    } catch { /* Dropbox did not return JSON. */ }
+    for (const value of body.values()) if (value.length > 5) reason = reason.replaceAll(value, "[redacted]");
+    throw new Error(`Dropbox OAuth: ${response.status} ${reason.slice(0, 240)}`);
+  }
   return response.json() as Promise<{ access_token: string; refresh_token?: string; account_id?: string }>;
 }
 
@@ -87,3 +99,4 @@ export async function uploadState(token: string, data: string, revision: string)
     }, body: data,
   });
 }
+
