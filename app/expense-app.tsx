@@ -23,7 +23,8 @@ export default function ExpenseApp({ displayName }: { displayName: string }) {
   const [data, setData] = useState<AppState>(EMPTY_STATE);
   const [sync, setSync] = useState<SyncState>("loading");
   const [loadError, setLoadError] = useState("");
-  const versionRef = useRef(0);
+  const [needsDropbox, setNeedsDropbox] = useState(false);
+  const versionRef = useRef("");
   const queueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => { void loadState(); }, []);
@@ -50,7 +51,9 @@ export default function ExpenseApp({ displayName }: { displayName: string }) {
     try {
       const response = await fetch("/api/state", { cache: "no-store" });
       const body = await response.json();
+      if (response.status === 401) { setNeedsDropbox(true); setSync("offline"); return; }
       if (!response.ok) throw new Error(body.error ?? "No se pudieron cargar los datos.");
+      setNeedsDropbox(false);
       setData(body.state); versionRef.current = body.version; setLoadError(""); setSync("saved");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "No se pudieron cargar los datos."); setSync("offline");
@@ -63,7 +66,7 @@ export default function ExpenseApp({ displayName }: { displayName: string }) {
         const response = await fetch("/api/state", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ state: next, version: versionRef.current }) });
         const body = await response.json();
         if (!response.ok) {
-          if (response.status === 409) { toast.error("Hay cambios más recientes en otro dispositivo.", { description: "Se volverán a cargar para evitar perderlos." }); await loadState(); return; }
+          if (response.status === 409) { setSync("offline"); toast.error("Hay cambios más recientes en otro dispositivo.", { description: "Tus cambios siguen visibles aquí. Recarga para ver la versión guardada." }); return; }
           throw new Error(body.error ?? "No se pudo guardar.");
         }
         versionRef.current = body.version; setSync("saved");
@@ -91,6 +94,7 @@ export default function ExpenseApp({ displayName }: { displayName: string }) {
   }
 
   if (sync === "loading") return <LoadingScreen />;
+  if (needsDropbox) return <main className="grid min-h-dvh place-items-center bg-[#f4f7f5] p-6"><div className="max-w-sm rounded-3xl bg-white p-7 text-center shadow-lg"><Cloud className="mx-auto size-9 text-[#173f3a]" /><h1 className="mt-3 text-xl font-bold">Conecta Dropbox</h1><p className="mt-2 text-sm text-[#60736f]">Autoriza el acceso a la carpeta de esta aplicación para guardar y sincronizar tus cuentas.</p><Button asChild className="mt-5 bg-[#173f3a]"><a href="/api/auth/dropbox/start">Conectar Dropbox</a></Button></div></main>;
   if (loadError && !data.events.length) return <ErrorScreen message={loadError} retry={loadState} />;
 
   return <main className="min-h-dvh bg-[#f4f7f5] text-[#17332f]">

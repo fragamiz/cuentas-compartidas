@@ -1,0 +1,3 @@
+DROPBOX_APP_KEY=tu_clave_de_aplicacion
+DROPBOX_APP_SECRET=tu_secreto_de_aplicacion
+SESSION_KEY=clave_aleatoria_de_32_bytes_en_base64url
