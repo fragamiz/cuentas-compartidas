@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Archive, ArrowRight, CalendarDays, Check, CircleDollarSign, Cloud, CloudOff, MoreHorizontal, Plus, ReceiptText, RotateCcw, Trash2, Users } from "lucide-react";
+import { Archive, ArrowRight, CalendarDays, Check, CircleDollarSign, Cloud, CloudOff, MoreHorizontal, Plus, ReceiptText, RotateCcw, Trash2, Upload, Users } from "lucide-react";
 import { toast } from "sonner";
 import ExpenseDialog from "./expense-dialog";
 import { Toaster } from "@/components/ui/sonner";
@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EMPTY_STATE, eventBalances, eventPeople, eventSettlements, expensePayments, formatMoney, type AppState, type Event, type Expense, type Member, type Settlement, type SettledTransfer } from "@/lib/expense-types";
@@ -106,7 +107,7 @@ export default function ExpenseApp({ displayName }: { displayName: string }) {
         {archivedEvents.length > 0 && <div className="mt-6 border-t border-white/10 pt-4"><p className="px-2 text-xs font-semibold uppercase tracking-wide text-white/45">Archivados</p><EventButtons events={archivedEvents} activeId={active?.id} select={(id) => commit({ ...data, activeEventId: id })} archived /></div>}
         {!data.events.length && <p className="px-2 py-8 text-sm leading-relaxed text-white/65">Crea tu primer evento para empezar a anotar gastos.</p>}
       </aside>
-      <section className="min-w-0">{!active ? <EmptyHome onCreate={(event) => commit({ events: [event], activeEventId: event.id })} /> : <EventDashboard event={active} update={updateActiveEvent} onArchive={archiveEvent} onDelete={deleteEvent} />}</section>
+      <section className="min-w-0">{!active ? <EmptyHome onCreate={(event) => commit({ events: [event], activeEventId: event.id })} onImport={commit} /> : <EventDashboard event={active} update={updateActiveEvent} onArchive={archiveEvent} onDelete={deleteEvent} />}</section>
     </div><Toaster position="top-center" richColors />
   </main>;
 }
@@ -166,7 +167,26 @@ function SettlementList({ settlements, completed, nameById, regularIds, hasExpen
   </div>;
 }
 
-function EmptyHome({ onCreate }: { onCreate: (event: Event) => void }) { return <div className="grid min-h-[62dvh] place-items-center rounded-[28px] border border-dashed border-[#173f3a]/20 bg-white/60 p-8 text-center"><div className="max-w-md"><div className="mx-auto grid size-16 place-items-center rounded-[22px] bg-[#e3efeb] text-[#2f7369]"><ReceiptText className="size-8" /></div><h1 className="mt-5 text-3xl font-bold tracking-tight">Empecemos por el grupo</h1><p className="mt-2 leading-relaxed text-[#60736f]">Crea una comida, un viaje o una escapada y añade a las personas que compartirán los gastos.</p><div className="mt-6 inline-flex"><NewEventDialog onCreate={onCreate} /></div></div></div>; }
+function EmptyHome({ onCreate, onImport }: { onCreate: (event: Event) => void; onImport: (state: AppState) => void }) { return <div className="grid min-h-[62dvh] place-items-center rounded-[28px] border border-dashed border-[#173f3a]/20 bg-white/60 p-8 text-center"><div className="max-w-md"><div className="mx-auto grid size-16 place-items-center rounded-[22px] bg-[#e3efeb] text-[#2f7369]"><ReceiptText className="size-8" /></div><h1 className="mt-5 text-3xl font-bold tracking-tight">Empecemos por el grupo</h1><p className="mt-2 leading-relaxed text-[#60736f]">Crea una comida, un viaje o una escapada y añade a las personas que compartirán los gastos.</p><div className="mt-6 flex flex-wrap justify-center gap-3"><NewEventDialog onCreate={onCreate} /><ImportStateDialog onImport={onImport} /></div></div></div>; }
+
+function ImportStateDialog({ onImport }: { onImport: (state: AppState) => void }) {
+  const [open, setOpen] = useState(false);
+  const [source, setSource] = useState("");
+  function importState() {
+    try {
+      const parsed: unknown = JSON.parse(source);
+      if (!parsed || typeof parsed !== "object") throw new Error();
+      const candidate = "state" in parsed ? parsed.state : parsed;
+      if (!candidate || typeof candidate !== "object" || !("events" in candidate) || !Array.isArray(candidate.events)) throw new Error();
+      if (!candidate.events.length || !candidate.events.every((event: unknown) => event && typeof event === "object" && "id" in event && typeof event.id === "string" && "name" in event && typeof event.name === "string" && "members" in event && Array.isArray(event.members) && "expenses" in event && Array.isArray(event.expenses))) throw new Error();
+      const state = candidate as AppState;
+      onImport({ events: state.events, activeEventId: state.events.some((event) => event.id === state.activeEventId) ? state.activeEventId : state.events[0].id });
+      setSource(""); setOpen(false);
+      toast.success("Datos importados. Comprobando la sincronización con Dropbox…");
+    } catch { toast.error("El texto no contiene datos válidos de Cuentas Compartidas."); }
+  }
+  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button variant="outline"><Upload /> Importar datos de Sites</Button></DialogTrigger><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Importar datos de Sites</DialogTitle><DialogDescription>Abre <a className="underline" href="https://cuentas-compartidas.fragamiz.chatgpt.site/api/state" target="_blank" rel="noopener noreferrer">tus datos de Sites</a> en otra pestaña, copia todo el JSON y pégalo aquí. La versión de Sites conservará sus datos.</DialogDescription></DialogHeader><Textarea aria-label="Datos JSON de Sites" value={source} onChange={(event) => setSource(event.target.value)} placeholder='{"state":{"events":[...]}}' className="min-h-48 font-mono text-xs" /><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button onClick={importState} disabled={!source.trim()}>Importar y guardar</Button></DialogFooter></DialogContent></Dialog>;
+}
 function LoadingScreen() { return <main className="grid min-h-dvh place-items-center bg-[#f4f7f5] text-[#173f3a]"><div className="text-center"><div className="mx-auto size-9 animate-spin rounded-full border-4 border-[#d7e3df] border-t-[#2f7369]" /><p className="mt-4 font-medium">Sincronizando tus cuentas…</p></div></main>; }
 function ErrorScreen({ message, retry }: { message: string; retry: () => void }) { return <main className="grid min-h-dvh place-items-center bg-[#f4f7f5] p-6"><div className="max-w-sm rounded-3xl bg-white p-7 text-center shadow-lg"><CloudOff className="mx-auto size-9 text-[#b1493f]" /><h1 className="mt-3 text-xl font-bold">No hemos podido conectar</h1><p className="mt-2 text-sm text-[#60736f]">{message}</p><Button onClick={retry} className="mt-5 bg-[#173f3a]">Volver a intentar</Button></div></main>; }
 function SyncLabel({ state }: { state: SyncState }) { return <p className="mt-0.5 flex items-center gap-1 text-xs text-[#60736f]">{state === "offline" ? <CloudOff className="size-3" /> : <Cloud className="size-3" />}{state === "saved" ? "Sincronizado" : state === "saving" ? "Guardando…" : state === "offline" ? "Sin conexión" : "Cargando…"}</p>; }
@@ -175,3 +195,4 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function MemberName({ name, temporary = false }: { name: string; temporary?: boolean }) { return <div className="flex min-w-0 items-center gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-full text-sm font-bold ${temporary ? "bg-[#f5be5b] text-[#173f3a]" : "bg-[#173f3a] text-white"}`}>{name.slice(0, 1).toUpperCase()}</span><span className="truncate font-semibold">{name}{temporary && <span className="ml-2 text-xs font-medium text-[#9a6a19]">Invitado</span>}</span></div>; }
 function SmallValue({ label, value }: { label: string; value: string }) { return <div className="hidden sm:block"><p className="text-xs text-[#71817e]">{label}</p><p className="font-semibold tabular-nums">{value}</p></div>; }
 function InfoBox({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) { return <div className="rounded-[24px] border border-[#173f3a]/10 bg-white px-6 py-12 text-center"><div className="mx-auto grid size-11 place-items-center rounded-full bg-[#e5f0ed] text-[#2f7369]">{icon}</div><h2 className="mt-3 font-semibold">{title}</h2><p className="mt-1 text-sm text-[#71817e]">{text}</p></div>; }
+

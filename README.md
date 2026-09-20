@@ -8,6 +8,8 @@ Cada usuario conecta su propia cuenta de Dropbox. La aplicación guarda un únic
 
 La nueva versión comienza con un archivo vacío. Los datos de la versión de Sites estaban en su base de datos privada y no forman parte de este repositorio. **No usar la nueva versión como sustituta hasta importar y verificar esos datos.**
 
+Para importar tus datos, abre `https://cuentas-compartidas.fragamiz.chatgpt.site/api/state` en el mismo navegador donde usas la versión de Sites. Copia todo el JSON. Después, en la nueva versión ya conectada a Dropbox, pulsa **Importar datos de Sites**, pega el JSON y pulsa **Importar y guardar**. Esta opción aparece mientras la cuenta nueva no tenga eventos. Confirma que se muestran los mismos eventos, gastos y totales antes de cambiar de aplicación. La versión de Sites no se altera.
+
 ## Preparar Dropbox
 
 1. Crea una aplicación en [Dropbox App Console](https://www.dropbox.com/developers/apps), con acceso **App folder** y permisos `files.content.read` y `files.content.write`.
@@ -26,3 +28,4 @@ El acceso OAuth se hace en el navegador y el token de renovación se guarda en u
 ## Desarrollo local
 
 Requiere Node 22.13 o superior y pnpm 11. Copia `.dev.vars.example` a `.dev.vars`, completa los valores y registra `http://localhost:5173/api/auth/dropbox/callback` en Dropbox si necesitas probar OAuth localmente. Ejecuta `pnpm install --frozen-lockfile` y `pnpm dev`. Para comprobar la compilación: `pnpm build`.
+
