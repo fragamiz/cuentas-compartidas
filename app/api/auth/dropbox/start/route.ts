@@ -8,7 +8,9 @@ export async function GET(request: Request) {
   url.searchParams.set("redirect_uri", redirectUri(request));
   url.searchParams.set("token_access_type", "offline");
   url.searchParams.set("state", state);
-  const response = Response.redirect(url, 302);
-  response.headers.append("set-cookie", oauthCookie(request, state));
-  return response;
+  return new Response(null, {
+    status: 302,
+    headers: { Location: url.toString(), "Set-Cookie": oauthCookie(request, state) },
+  });
 }
+
